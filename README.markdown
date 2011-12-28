@@ -11,18 +11,20 @@ Aloha is a webserver, implemented using [Netty](http://netty.io) and Clojure.
   {:port 8080})
 ```
 
-Aloha is a reference implementation of a Clojure/Netty webserver, or basically [Aleph](https://github.com/ztellman/aleph) without any extraneous fluff.  It exists as a reminder that Aleph could be faster, but also as a very fast, fully functional webserver in its own right.  You can use Aloha in your own project by adding this to your `project.clj`:
+Aloha is a reference implementation of a Clojure/Netty webserver, or basically [Aleph](https://github.com/ztellman/aleph) without any extraneous fluff.  It exists as a reminder that Aleph could be faster, but also as a very fast, fully functional webserver in its own right.  
+
+You can use Aloha in your own project by adding this to your `project.clj`:
 
 ```
 [aloha "1.0.0"]
 ```
 
-Since much of Aloha's life will be spent returning a single string over and over again, it's easy to start up a server for benchmarking.
+Since much of Aloha's existence will be spent returning a single string over and over again, it's easy to start up a server for benchmarking.
 
 ```
-$ lein run &
+$  lein run &
 Server listening on port 8080.
-$ curl localhost:8080
+$  curl localhost:8080
 Aloha!
 ```
 
