@@ -100,10 +100,14 @@
     (HttpHeaders/setContentLength response (-> response .getContent .readableBytes))
     (write-to-channel channel response callback)))
 
+(defn respond-with-nothing [channel response callback]
+  (HttpHeaders/setContentLength response 0)
+  (write-to-channel channel response callback))
+
 (defn respond [channel response body callback]
   (cond
     (= nil body)
-    (write-to-channel channel response callback)
+    (respond-with-nothing channel response callback)
     
     (instance? String body)
     (respond-with-string channel response body callback)
@@ -132,6 +136,6 @@
                    (HttpResponseStatus/valueOf (:status rsp)))]
     (doseq [[k v] (:headers rsp)]
       (.setHeader response (format-header-key k) v))
-    (.setHeader response "Content-Length" 0)
+    (.setHeader response "Server" "aloha (1.0.0)")
     (.setHeader response "Connection" (if keep-alive? "keep-alive" "close"))
     response))

@@ -40,16 +40,10 @@
   (LazyMap. m))
 
 (defn assoc-request-body [request ^HttpRequest netty-request]
-  (if-not (.isChunked netty-request)
-    (let [body (.getContent netty-request)]
-      (assoc request
-        :body (when-not (= 0 (.readableBytes body))
-                (ChannelBufferInputStream. body))))
-    (let [pipe (Pipe/open)]
-      (with-meta
-        (assoc request
-          :body (Channels/newInputStream (.source pipe)))
-        {::output-stream (Channels/newOutputStream (.sink pipe))}))))
+  (let [body (.getContent netty-request)]
+    (assoc request
+      :body (when-not (= 0 (.readableBytes body))
+              (ChannelBufferInputStream. body)))))
 
 (defn transform-netty-request [^Channel channel ^HttpRequest netty-request]
   (let [request (lazy-map

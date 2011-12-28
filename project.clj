@@ -1,5 +1,5 @@
-(defproject aloha "1.0.0-SNAPSHOT"
-  :description "hello, web"
+(defproject aloha "1.0.0"
+  :description "a simple, friendly webserver"
   :repositories {"jboss" "http://repository.jboss.org/nexus/content/groups/public/"}
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"
@@ -9,5 +9,5 @@
                  [org.clojure/tools.logging "0.2.3"]
                  [org.jboss.netty/netty "3.2.7.Final"]
                  [clj-http "0.2.6"]
-                 [potemkin "0.1.1-SNAPSHOT"]]
+                 [potemkin "0.1.1"]]
   :jvm-opts ["-server" "-XX:+UseConcMarkSweepGC"])

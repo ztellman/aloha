@@ -15,30 +15,37 @@
      HttpHeaders
      HttpMessage
      HttpRequest
+     HttpChunkAggregator
      HttpRequestDecoder
      HttpResponseEncoder
      HttpContentCompressor]))
 
+(def error-response
+  {:status 500,
+   :headers {:content-type "text/plain"}
+   :body "Uncaught exception in handler."})
+
 (defn http-request-handler [handler]
   (let [current-request (atom nil)]
     (message-handler
-      (fn [^HttpMessage msg ^Channel channel]
-        (if (instance? HttpRequest msg)
-          (let [request (transform-netty-request channel msg)]
-            ;;(reset! current-request request)
-            (let [response (handler request)
-                  keep-alive? (HttpHeaders/isKeepAlive msg)]
-              (respond channel
-                (transform-response response keep-alive?)
-                (:body response)
-                (when-not keep-alive?
-                  #(.close channel)))))
-          (throw (Exception. "Chunked requests are not currently supported.")))))))
+      (fn [^HttpRequest msg ^Channel channel]
+        (let [request (transform-netty-request channel msg)]
+          (let [response (try
+                           (handler request)
+                           (catch Exception e
+                             error-response))
+                keep-alive? (HttpHeaders/isKeepAlive msg)]
+            (respond channel
+              (transform-response response keep-alive?)
+              (:body response)
+              (when-not keep-alive?
+                #(.close channel)))))))))
 
 (defn http-pipeline [handler]
   (fn [channel-group]
     (create-netty-pipeline "http-server" channel-group
       :deocder (HttpRequestDecoder.)
+      :aggregator (HttpChunkAggregator. 1048576)
       :encoder (HttpResponseEncoder.)
       :deflater (HttpContentCompressor.)
       :handler (http-request-handler handler))))
