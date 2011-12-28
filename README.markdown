@@ -1,17 +1,36 @@
-Aloha is a webserver, implemented using [Netty](http://netty.io) and Clojure.
+Aloha is a webserver, implemented using [Netty](http://netty.io) and Clojure, which conforms to the [Ring](https://github.com/mmcgrana/ring) spec.
+
+```clj
+(use 'aloha.core)
+
+(start-http-server
+  (fn [request]
+    {:status 200
+	 :headers {:content-type "text/plain"}
+	 :body "Aloha!\n"})
+  {:port 8080})
+```
+
+Aloha is a reference implementation of a Clojure/Netty webserver, or basically [Aleph](https://github.com/ztellman/aleph) without any extraneous fluff.  It exists as a reminder that Aleph could be faster, but also as a very fast, fully functional webserver in its own right.  You can use Aloha in your own project by adding this to your `project.clj`:
 
 ```
-$ git clone http://github.com/ztellman/aloha.git
-...
+[aloha "1.0.0"]
+```
+
+Since much of Aloha's life will be spent returning a single string over and over again, it's easy to start up a server for benchmarking.
+
+```
 $ lein run &
 Server listening on port 8080.
 $ curl localhost:8080
 Aloha!
 ```
 
-It is a simple but complete implementation of the [Ring](https://github.com/mmcgrana/ring) spec, mostly intended as a reference implementation for "Hello World" benchmarking.  If you think you can improve the performance, please send a pull request.
+If you have any ideas on how to improve Aloha's performance, please send a pull request.
 
-### Benchmarking Aloha on OS X ###
+### Benchmarking ###
+
+
 
 ```
 $  sudo sysctl -w net.inet.tcp.msl=1000
