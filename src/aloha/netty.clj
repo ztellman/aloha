@@ -1,3 +1,11 @@
+;;   Copyright (c) Zachary Tellman. All rights reserved.
+;;   The use and distribution terms for this software are covered by the
+;;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;;   which can be found in the file epl-v10.html at the root of this distribution.
+;;   By using this software in any fashion, you are agreeing to be bound by
+;;   the terms of this license.
+;;   You must not remove this notice, or any other, from this software.
+
 (ns aloha.netty
   (:require
     [clojure.tools.logging :as log])
@@ -5,7 +13,7 @@
     [org.jboss.netty.channel
      Channels
      Channel
-     ChannelHandler
+     ChannelFutureListener
      ChannelUpstreamHandler
      ChannelDownstreamHandler
      ChannelPipelineFactory
@@ -24,18 +32,18 @@
     [java.net
      InetSocketAddress]))
 
-(def upstream-error-handler
+(defn upstream-error-handler [pipeline-name]
   (reify ChannelUpstreamHandler
     (handleUpstream [_ ctx evt]
       (if (instance? ExceptionEvent evt)
-        (log/error (.getCause ^ExceptionEvent evt) "Error in Netty pipeline.")
+        (log/error (.getCause ^ExceptionEvent evt) (str "error in " pipeline-name))
         (.sendUpstream ctx evt)))))
 
-(def downstream-error-handler
+(defn downstream-error-handler [pipeline-name]
   (reify ChannelDownstreamHandler
     (handleDownstream [_ ctx evt]
       (if (instance? ExceptionEvent evt)
-        (log/error (.getCause ^ExceptionEvent evt) "Error in Netty pipeline.")
+        (log/error (.getCause ^ExceptionEvent evt) (str "error in " pipeline-name))
         (.sendDownstream ctx evt)))))
 
 (defn connection-handler [^ChannelGroup channel-group]
@@ -58,8 +66,8 @@
              `(.addLast ~pipeline-sym ~(name stage-name) ~stage))
            (partition 2 stages))
        (.addFirst ~pipeline-sym "channel-group-handler" (connection-handler channel-group#))
-       (.addLast ~pipeline-sym "outgoing-error" downstream-error-handler)
-       (.addFirst ~pipeline-sym "incoming-error" upstream-error-handler)
+       (.addLast ~pipeline-sym "outgoing-error" (downstream-error-handler ~pipeline-name))
+       (.addFirst ~pipeline-sym "incoming-error" (upstream-error-handler ~pipeline-name))
        ~pipeline-sym)))
 
 (defn create-pipeline-factory [channel-group pipeline-generator]
@@ -92,6 +100,22 @@
   [evt]
   (when (instance? MessageEvent evt)
     (.getMessage ^MessageEvent evt)))
+
+(defn ^ChannelUpstreamHandler message-handler
+  [handler]
+  (reify ChannelUpstreamHandler
+    (handleUpstream [_ ctx evt]
+      (if-let [msg (message-event evt)]
+        (handler msg (.getChannel evt))
+        (.sendUpstream ctx evt)))))
+
+(defn write-to-channel [^Channel ch msg on-complete]
+  (let [channel-future (.write ch msg)]
+    (when on-complete
+      (.addListener channel-future
+        (reify ChannelFutureListener
+          (operationComplete [_ future]
+            (on-complete)))))))
 
 ;;;
 
