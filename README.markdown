@@ -1,4 +1,4 @@
-Aloha is a webserver, implemented using [Netty](http://netty.io) and Clojure, which conforms to the [Ring](https://github.com/mmcgrana/ring) spec.
+Aloha is a webserver, implemented using [Netty](http://netty.io) and Clojure.
 
 ```clj
 (use 'aloha.core)
@@ -28,9 +28,9 @@ Aloha!
 
 If you have any ideas on how to improve Aloha's performance, please send a pull request.
 
-### Benchmarking ###
+## Benchmarking ##
 
-
+### In OS X ###
 
 ```
 $  sudo sysctl -w net.inet.tcp.msl=1000
@@ -43,7 +43,7 @@ If you don't have `httperf` installed, try `brew install httperf` or `port insta
 
 If you want to be contrary and use `ab` instead, **be aware that the ApacheBench binary is broken on OS X Lion**.  You can fix it following [these instructions](http://forrst.com/posts/Fixing_ApacheBench_bug_on_Mac_OS_X_Lion-wku).
 
-### Benchmarking Aloha on Linux ###
+### In Linux ###
 
 ```
 $  echo 1 | sudo tee /proc/sys/net/ipv4/tcp_tw_reuse
