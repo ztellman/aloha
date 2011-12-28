@@ -53,9 +53,9 @@
     (fn [request]
       {:status 200
        :headers {"content-type" "text/plain"}
-       :body "Aloha!"})
+       :body "Aloha!\n"})
     {:port 8080}))
 
 (defn -main [& args]
   (start-hello-world-server)
-  (println "Running server on port 8080."))
+  (println "Server listening on port 8080."))
