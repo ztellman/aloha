@@ -1,13 +1,15 @@
-(defproject aloha "1.0.0"
+(defproject aloha "1.0.1"
   :description "a simple, friendly webserver"
-  :repositories {"jboss" "http://repository.jboss.org/nexus/content/groups/public/"}
+  :repositories {"jboss" "http://repository.jboss.org/nexus/content/groups/public/"
+                 "sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo}
   :main aloha.core
-  :dependencies [[org.clojure/clojure "1.3.0"]
+  :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.logging "0.2.3"]
-                 [org.jboss.netty/netty "3.2.7.Final"]
-                 [clj-http "0.2.6"]
-                 [potemkin "0.1.1"]]
+                 [io.netty/netty "3.5.2.Final"]
+                 [clj-http "0.3.6"]
+				 [org.clojure/tools.cli "0.2.1"]
+                 [potemkin "0.1.5"]]
   :jvm-opts ["-server" "-XX:+UseConcMarkSweepGC"])
