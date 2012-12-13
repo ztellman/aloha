@@ -8,7 +8,7 @@
   :main aloha.core
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.logging "0.2.3"]
-                 [io.netty/netty "3.5.2.Final"]
+                 [io.netty/netty "3.5.11.Final"]
                  [clj-http "0.3.6"]
 				 [org.clojure/tools.cli "0.2.1"]
                  [potemkin "0.1.5"]]
