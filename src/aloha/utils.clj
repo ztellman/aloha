@@ -30,7 +30,8 @@
 
 (def netty-method->keyword
   (zipmap
-    (map #(HttpMethod/valueOf (name %)) request-methods)
+    (map #(-> % name .toUpperCase HttpMethod/valueOf)
+         request-methods)
     request-methods))
 
 (defn request-method [^HttpRequest request]
