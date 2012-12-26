@@ -26,37 +26,46 @@
 
 ;;;
 
-(def-custom-map LazyMap
-  :get
-  (fn [_ data _ key default-value]
-    `(if-not (contains? ~data ~key)
-       ~default-value
-       (let [val# (get ~data ~key)]
-         (if (delay? val#)
-           @val#
-           val#)))))
-
-(defn lazy-map [& {:as m}]
-  (LazyMap. m))
-
-(defn assoc-request-body [request ^HttpRequest netty-request]
-  (let [body (.getContent netty-request)]
-    (assoc request
-      :body (when-not (= 0 (.readableBytes body))
-              (ChannelBufferInputStream. body)))))
+(def-map-type RequestMap [^HttpRequest netty-request ^Channel netty-channel headers body]
+  (get [_ k default-value]
+    (case k
+      :scheme :http
+      :remote-addr (channel-remote-host-address netty-channel)
+      :server-name (channel-local-host-address netty-channel)
+      :server-port (channel-local-port netty-channel)
+      :request-method (request-method netty-request)
+      :headers @headers
+      :content-type (http-content-type netty-request)
+      :character-encoding (http-character-encoding netty-request)
+      :uri (request-uri netty-request)
+      :query-string (request-query-string netty-request)
+      :content-length (http-content-length netty-request)
+      :body body
+      default-value))
+  (assoc [this k v]
+    (assoc (into {} this) k v))
+  (dissoc [this k]
+    (dissoc (into {} this) k))
+  (keys [this]
+    [:scheme
+     :remote-addr 
+     :server-name 
+     :server-port 
+     :request-method 
+     :headers 
+     :content-type 
+     :character-encoding 
+     :uri
+     :query-string 
+     :content-length
+     :body]))
 
 (defn transform-netty-request [^Channel channel ^HttpRequest netty-request]
-  (let [request (lazy-map
-                  :scheme :http
-                  :remote-addr (delay (channel-remote-host-address channel))
-                  :server-name (delay (channel-local-host-address channel))
-                  :server-port (delay (channel-local-port channel))
-                  :request-method (delay (request-method netty-request))
-                  :headers (delay (http-headers netty-request))
-                  :content-type (delay (http-content-type netty-request))
-                  :character-encoding (delay (http-character-encoding netty-request))
-                  :uri (delay (request-uri netty-request))
-                  :query-string (delay (request-query-string netty-request))
-                  :content-length (delay (http-content-length netty-request)))]
-    (assoc-request-body request netty-request)))
+  (RequestMap.
+    netty-request
+    channel
+    (delay (http-headers netty-request))
+    (let [body (.getContent netty-request)]
+      (when-not (= 0 (.readableBytes body))
+        (ChannelBufferInputStream. body)))))
 
