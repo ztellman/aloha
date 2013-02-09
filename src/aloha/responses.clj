@@ -136,6 +136,6 @@
                    (HttpResponseStatus/valueOf (:status rsp)))]
     (doseq [[k v] (:headers rsp)]
       (.setHeader response (format-header-key k) v))
-    (.setHeader response "Server" "aloha (1.0.0)")
+    (.setHeader response "Server" "aloha/1.0.2")
     (.setHeader response "Connection" (if keep-alive? "keep-alive" "close"))
     response))

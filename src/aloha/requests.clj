@@ -47,18 +47,18 @@
   (dissoc [this k]
     (dissoc (into {} this) k))
   (keys [this]
-    [:scheme
-     :remote-addr 
-     :server-name 
-     :server-port 
-     :request-method 
-     :headers 
-     :content-type 
-     :character-encoding 
-     :uri
-     :query-string 
-     :content-length
-     :body]))
+    #{:scheme
+      :remote-addr 
+      :server-name 
+      :server-port 
+      :request-method 
+      :headers 
+      :content-type 
+      :character-encoding 
+      :uri
+      :query-string 
+      :content-length
+      :body}))
 
 (defn transform-netty-request [^Channel channel ^HttpRequest netty-request]
   (RequestMap.

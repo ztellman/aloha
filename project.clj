@@ -1,4 +1,4 @@
-(defproject aloha "1.0.2-SNAPSHOT"
+(defproject aloha "1.0.2"
   :description "a simple, friendly webserver"
   :repositories {"jboss" "http://repository.jboss.org/nexus/content/groups/public/"
                  "sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
@@ -8,8 +8,8 @@
   :main aloha.core
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.logging "0.2.3"]
-                 [io.netty/netty "3.5.11.Final"]
+                 [io.netty/netty "3.6.2.Final"]
                  [clj-http "0.3.6"]
                  [org.clojure/tools.cli "0.2.1"]
-                 [potemkin "0.2.0-SNAPSHOT"]]
+                 [potemkin "0.2.0"]]
   :jvm-opts ["-server" "-XX:+UseConcMarkSweepGC"])
