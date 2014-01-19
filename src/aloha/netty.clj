@@ -8,145 +8,165 @@
 
 (ns aloha.netty
   (:require
-    [clojure.tools.logging :as log])
+    [clojure.tools.logging :as log]
+    [byte-streams :as bs])
   (:import
-    [org.jboss.netty.channel
-     Channels
-     Channel
-     ChannelFutureListener
-     ChannelUpstreamHandler
-     ChannelDownstreamHandler
-     ChannelPipelineFactory
-     ExceptionEvent
-     MessageEvent
-     ChannelEvent]
-    [org.jboss.netty.channel.group
-     DefaultChannelGroup
-     ChannelGroup]
-    [org.jboss.netty.bootstrap
+    [io.netty.buffer
+     Unpooled
+     PooledByteBufAllocator]
+    [io.netty.channel
+     ChannelPipeline
+     ChannelHandler
+     ChannelOption
+     ChannelInboundHandler
+     ChannelOutboundHandler
+     ChannelFutureListener]
+    [io.netty.handler.codec.http
+     HttpServerCodec
+     HttpRequest
+     HttpHeaders
+     HttpVersion
+     HttpResponseStatus
+     DefaultFullHttpResponse]
+    [io.netty.bootstrap
      ServerBootstrap]
-    [org.jboss.netty.channel.socket.nio
-     NioServerSocketChannelFactory]
-    [java.util.concurrent
-     Executors]
-    [java.net
-     InetSocketAddress]))
+    [io.netty.channel.nio
+     NioEventLoopGroup]
+    [io.netty.channel.socket.nio
+     NioServerSocketChannel]))
 
-(defn upstream-error-handler [pipeline-name]
-  (reify ChannelUpstreamHandler
-    (handleUpstream [_ ctx evt]
-      (if (instance? ExceptionEvent evt)
-        (log/error (.getCause ^ExceptionEvent evt) (str "error in " pipeline-name))
-        (.sendUpstream ctx evt)))))
+(defmacro channel-handler
+  [& {:as handlers}]
+  `(reify
+     ChannelHandler
+     ChannelInboundHandler
+     ChannelOutboundHandler
+     
+     (handlerAdded
+       ~@(or (:handler-added handlers) `([_ _])))
+     (handlerRemoved
+       ~@(or (:handler-removed handlers) `([_ _])))
+     (exceptionCaught
+       ~@(or (:exception-caught handlers)
+           `([_ ctx# cause#]
+               (.fireExceptionCaught ctx# cause#))))
+     (channelRegistered
+       ~@(or (:channel-registered handlers)
+           `([_ ctx#]
+               (.fireChannelRegistered ctx#))))
+     (channelUnregistered
+       ~@(or (:channel-unregistered handlers)
+           `([_ ctx#]
+               (.fireChannelUnregistered ctx#))))
+     (channelActive
+       ~@(or (:channel-active handlers)
+           `([_ ctx#]
+               (.fireChannelActive ctx#))))
+     (channelInactive
+       ~@(or (:channel-inactive handlers)
+           `([_ ctx#]
+               (.fireChannelInactive ctx#))))
+     (channelRead
+       ~@(or (:channel-read handlers)
+           `([_ ctx# msg#]
+               (.fireChannelRead ctx# msg#))))
+     (channelReadComplete
+       ~@(or (:channel-read-complete handlers)
+           `([_ ctx#]
+               (.fireChannelReadComplete ctx#))))
+     (userEventTriggered
+       ~@(or (:user-event-triggered handlers)
+           `([_ ctx# evt#]
+               (.userEventTriggered ctx# evt#))))
+     (channelWritabilityChanged
+       ~@(or (:channel-writability-changed handlers)
+           `([_ ctx#]
+               (.fireChannelWritabilityChanged ctx#))))
+     (bind
+       ~@(or (:bind handlers)
+           `([_ ctx# local-address# promise#]
+               (.bind ctx# local-address# promise#))))
+     (connect
+       ~@(or (:connect handlers)
+           `([_ ctx# remote-address# local-address# promise#]
+               (.connect ctx# remote-address# local-address# promise#))))
+     (disconnect
+       ~@(or (:disconnect handlers)
+           `([_ ctx# promise#]
+               (.disconnect ctx# promise#))))
+     (close
+       ~@(or (:close handlers)
+           `([_ ctx# promise#]
+               (.close ctx# promise#))))
+     (read
+       ~@(or (:read handlers)
+           `([_ ctx#]
+               (.read ctx#))))
+     (write
+       ~@(or (:write handlers)
+           `([_ ctx# msg# promise#]
+               (.write ctx# msg# promise#))))
+     (flush
+       ~@(or (:flush handlers)
+           `([_ ctx#]
+               (.flush ctx#))))))
 
-(defn downstream-error-handler [pipeline-name]
-  (reify ChannelDownstreamHandler
-    (handleDownstream [_ ctx evt]
-      (if (instance? ExceptionEvent evt)
-        (log/error (.getCause ^ExceptionEvent evt) (str "error in " pipeline-name))
-        (.sendDownstream ctx evt)))))
+(defn pipeline-initializer [pipeline-builder]
+  (channel-handler
 
-(defn connection-handler [^ChannelGroup channel-group]
-  (let [latch (atom false)]
-    (reify ChannelUpstreamHandler
-      (handleUpstream [_ ctx evt]
-        (when (and
-                (instance? ChannelEvent evt)
-                (compare-and-set! latch false (-> ^ChannelEvent evt .getChannel .isOpen)))
-          (.add channel-group (.getChannel ^ChannelEvent evt)))
-        (.sendUpstream ctx evt)))))
+    :channel-registered
+    ([this ctx]
+      (let [pipeline (.pipeline ctx)]
+        (try
+          (.remove pipeline this)
+          (pipeline-builder pipeline)
+          (.fireChannelRegistered ctx)
+          (catch Throwable e
+            (log/warn e "Failed to initialize channel")
+            (.close ctx)))))))
 
-(defmacro create-netty-pipeline
-  [pipeline-name channel-group & stages]
-  (let [pipeline-sym (gensym "pipeline")]
-    `(let [~pipeline-sym (Channels/pipeline)
-           channel-group# ~channel-group]
-       ~@(map
-           (fn [[stage-name stage]]
-             `(.addLast ~pipeline-sym ~(name stage-name) ~stage))
-           (partition 2 stages))
-       (.addFirst ~pipeline-sym "channel-group-handler" (connection-handler channel-group#))
-       (.addLast ~pipeline-sym "outgoing-error" (downstream-error-handler ~pipeline-name))
-       (.addFirst ~pipeline-sym "incoming-error" (upstream-error-handler ~pipeline-name))
-       ~pipeline-sym)))
+(def body (bs/to-byte-array "Aloha!"))
 
-(defn create-pipeline-factory [channel-group pipeline-generator]
-  (reify ChannelPipelineFactory
-    (getPipeline [_]
-      (pipeline-generator channel-group))))
-
-;;;
-
-(defn ^ChannelUpstreamHandler upstream-stage
-  "Creates a pipeline stage for upstream events."
-  [handler]
-  (reify ChannelUpstreamHandler
-    (handleUpstream [_ ctx evt]
-      (if-let [upstream-evt (handler evt)]
-	(.sendUpstream ctx upstream-evt)
-	(.sendUpstream ctx evt)))))
-
-(defn ^ChannelDownstreamHandler downstream-stage
-  "Creates a pipeline stage for downstream events."
-  [handler]
-  (reify ChannelDownstreamHandler
-    (handleDownstream [_ ctx evt]
-      (if-let [downstream-evt (handler evt)]
-	(.sendDownstream ctx downstream-evt)
-	(.sendDownstream ctx evt)))))
-
-(defn message-event
-  "Returns contents of message event, or nil if it's a different type of message."
-  [evt]
-  (when (instance? MessageEvent evt)
-    (.getMessage ^MessageEvent evt)))
-
-(defn ^ChannelUpstreamHandler message-handler
-  [handler]
-  (reify ChannelUpstreamHandler
-    (handleUpstream [_ ctx evt]
-      (if-let [msg (message-event evt)]
-        (handler msg (.getChannel evt))
-        (.sendUpstream ctx evt)))))
-
-(defn write-to-channel [^Channel ch msg on-complete]
-  (let [channel-future (.write ch msg)]
-    (when on-complete
-      (.addListener channel-future
-        (reify ChannelFutureListener
-          (operationComplete [_ future]
-            (on-complete)))))))
-
-;;;
-
-(def default-server-options
-  {"child.reuseAddress" true,
-   "reuseAddress" true,
-   "child.keepAlive" true,
-   "child.connectTimeoutMillis" 100,
-   "tcpNoDelay" true,
-   "readWriteFair" true,
-   "child.tcpNoDelay" true})
-
-(defn start-server [pipeline-generator options]
-  (let [port (:port options)
-        channel-factory (NioServerSocketChannelFactory.
-                          (Executors/newCachedThreadPool)
-                          (Executors/newCachedThreadPool))
-        channel-group (DefaultChannelGroup.)
-        server (ServerBootstrap. channel-factory)]
+(defn http-handler []
+  (channel-handler
     
-    (.setPipelineFactory server
-      (create-pipeline-factory channel-group pipeline-generator))
+    :exception-handler
+    ([_ ctx ex]
+       (log/error ex "error in netty pipeline"))
+    
+    :channel-read
+    ([_ ctx msg]
+       (when (instance? HttpRequest msg)
+         (let [keep-alive? (HttpHeaders/isKeepAlive msg)
+               rsp (DefaultFullHttpResponse.
+                     HttpVersion/HTTP_1_1
+                     HttpResponseStatus/OK
+                     (Unpooled/wrappedBuffer body)
+                     false)]
+           (-> rsp .headers (.set "Content-Type" "text/plain"))
+           (-> rsp .headers (.set "Content-Length" (-> rsp .content .readableBytes)))
+           (if keep-alive?
+             (do
+               (-> rsp .headers (.set "Connection" "keep-alive"))
+               (-> ctx (.writeAndFlush rsp)))
+             (-> ctx (.writeAndFlush rsp) (.addListener ChannelFutureListener/CLOSE))))))))
 
-    (doseq [[k v] (merge default-server-options (:netty options))]
-      (.setOption server k v))
+(defn http-initializer [^ChannelPipeline pipeline]
+  (.addLast pipeline "codec" (HttpServerCodec. 4096 8192 8192 false))
+  (.addLast pipeline "handler" (http-handler)))
 
-    (.add channel-group (.bind server (InetSocketAddress. port)))
+(defn start-server [port]
+  (let [group (NioEventLoopGroup. 32)]
+    (try
+      (let [b (doto (ServerBootstrap.)
+                (.option ChannelOption/SO_BACKLOG (int 1024))
+                (.group group)
+                (.channel NioServerSocketChannel)
+                (.childHandler (pipeline-initializer http-initializer))
+                (.childOption ChannelOption/ALLOCATOR PooledByteBufAllocator/DEFAULT))
+            ch (-> b (.bind port) .sync .channel)]
+        (fn []
+          (-> ch .close .sync)
+          (.shutdownGracefully group))))))
 
-    (fn []
-      (let [close-future (.close channel-group)]
-        (future
-          (.awaitUninterruptibly close-future)
-          (.releaseExternalResources server))))))
 
